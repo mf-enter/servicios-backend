@@ -100,13 +100,40 @@ export const createPayment = async (req, res, next) => {
     }
 
     const existingPayment = await Payment.findByServiceId(parsedServiceId);
-    if (existingPayment) {
+
+    // If there's an existing completed payment, block creation
+    if (existingPayment && normalizeStatus(existingPayment.status) === "completado") {
       throw createHttpError(422, "Ya existe un pago para este servicio");
     }
 
+    // Ensure transaction reference is unique (unless it belongs to the placeholder being updated)
     const existingReference = await Payment.findByTransactionReference(transaction_reference.trim());
-    if (existingReference) {
+    if (existingReference && (!existingPayment || existingReference.payment_id !== existingPayment.payment_id)) {
       throw createHttpError(409, "transaction_reference ya existe");
+    }
+
+    // If a non-completed payment already exists (placeholder created when service marked completed),
+    // update that record instead of creating a new one.
+    if (existingPayment) {
+      await Payment.update(existingPayment.payment_id, {
+        service_id: parsedServiceId,
+        payment_method_id: payment_method_id ?? null,
+        amount: parsedAmount,
+        status: "Completado",
+        transaction_reference: transaction_reference.trim()
+      });
+
+      const payment = await Payment.findById(existingPayment.payment_id);
+      return res.json({
+        status: true,
+        payment_id: payment.payment_id,
+        service_id: payment.service_id,
+        amount: Number(payment.amount),
+        payment_status: payment.status,
+        transaction_reference: payment.transaction_reference,
+        created_at: payment.created_at,
+        payment_method_id: payment.payment_method_id
+      });
     }
 
     const paymentData = {

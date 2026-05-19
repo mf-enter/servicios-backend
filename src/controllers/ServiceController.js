@@ -169,7 +169,101 @@ export const assignWorker = async (req, res, next) => {
 export const updateService = async (req, res, next) => {
   try {
     await Service.update(req.params.id, req.body);
+
+    // If estimated_price provided in update, create/update payment record and mark service as quoted
+    if (Object.prototype.hasOwnProperty.call(req.body, "estimated_price") || Object.prototype.hasOwnProperty.call(req.body, "amount")) {
+      const serviceId = Number(req.params.id);
+      const estimated_price = Number(req.body?.estimated_price ?? req.body?.amount);
+      if (Number.isFinite(estimated_price) && estimated_price >= 0) {
+        const existingPayment = await Payment.findByServiceId(serviceId);
+        if (existingPayment) {
+          await Payment.update(existingPayment.payment_id, {
+            service_id: serviceId,
+            payment_method_id: existingPayment.payment_method_id,
+            amount: estimated_price,
+            status: existingPayment.status || "Pendiente",
+            transaction_reference: existingPayment.transaction_reference
+          });
+        } else {
+          await Payment.create({
+            service_id: serviceId,
+            payment_method_id: null,
+            amount: estimated_price,
+            status: "Pendiente",
+            transaction_reference: null
+          });
+        }
+        const pendienteId = await Service.findStatusIdByName("Pendiente");
+        if (pendienteId) await Service.updateStatus(serviceId, pendienteId);
+        await ServiceHistory.create({ service_id: serviceId, status_id: pendienteId || null, changed_by_user_id: req.user?.user_id || null, notes: `Cotización actualizada: ${estimated_price}` });
+      }
+    }
+
     res.json({ status: true, message: "Servicio actualizado" });
+  } catch (err) { next(err); }
+};
+
+export const createQuote = async (req, res, next) => {
+  try {
+    const serviceId = Number(req.params.id);
+    if (!Number.isInteger(serviceId) || serviceId <= 0) {
+      throw createHttpError(400, "ID de servicio inválido");
+    }
+
+    const estimated_price = Number(req.body?.estimated_price ?? req.body?.amount);
+    if (!Number.isFinite(estimated_price) || estimated_price < 0) {
+      throw createHttpError(400, "estimated_price inválido");
+    }
+
+    const service = await Service.findById(serviceId);
+    if (!service) {
+      throw createHttpError(404, "Servicio no encontrado");
+    }
+
+    const role = req.user?.role;
+    if (role === "worker") {
+      if (!service.worker_id || Number(service.worker_id) !== Number(req.user.worker_id)) {
+        throw createHttpError(403, "No puedes enviar cotización para este servicio");
+      }
+    } else if (role !== "admin") {
+      throw createHttpError(403, "No autorizado");
+    }
+
+    // Create or update payment as a quotation
+    const existingPayment = await Payment.findByServiceId(serviceId);
+    if (existingPayment) {
+      await Payment.update(existingPayment.payment_id, {
+        service_id: serviceId,
+        payment_method_id: existingPayment.payment_method_id,
+        amount: estimated_price,
+        status: existingPayment.status || "Pendiente",
+        transaction_reference: existingPayment.transaction_reference
+      });
+    } else {
+      await Payment.create({
+        service_id: serviceId,
+        payment_method_id: null,
+        amount: estimated_price,
+        status: "Pendiente",
+        transaction_reference: null
+      });
+    }
+
+    // Ensure service status reflects that it has been quoted (Pendiente)
+    const pendienteId = await Service.findStatusIdByName("Pendiente");
+    if (pendienteId) {
+      await Service.updateStatus(serviceId, pendienteId);
+    }
+
+    await ServiceHistory.create({
+      service_id: serviceId,
+      status_id: pendienteId || service.status_id,
+      changed_by_user_id: req.user.user_id,
+      notes: `Cotización enviada: ${estimated_price}`
+    });
+
+    const updated = await Service.findById(serviceId);
+    res.json({ status: true, message: "Cotización enviada", data: updated });
   } catch (err) { next(err); }
 };
 
@@ -219,7 +313,13 @@ export const updateServiceStatus = async (req, res, next) => {
         throw createHttpError(403, "No puedes actualizar este servicio");
       }
     } else if (role === "user") {
-      throw createHttpError(403, "El cliente no puede actualizar estado directo. Usa el endpoint de cancelación");
+      // Allow the client to accept a quotation (change to 'Aceptado') for their own service only
+      if (Number(service.client_id) !== Number(req.user.user_id)) {
+        throw createHttpError(403, "No puedes actualizar este servicio");
+      }
+      if (nextStatus !== "aceptado") {
+        throw createHttpError(403, "El cliente solo puede aceptar la cotización (status 'Aceptado')");
+      }
     } else if (role !== "admin") {
       throw createHttpError(403, "No autorizado");
     }
