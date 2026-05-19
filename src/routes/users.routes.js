@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getUsers, createUser, updateUser, deleteUser, getUserHistory, getMyUserServices } from "../controllers/UserController.js";
-import { getMyProfile, updateAvatar } from "../controllers/UserProfileController.js";
+import { getMyProfile, updateAvatar, updateMyProfile } from "../controllers/UserProfileController.js";
 import { authToken } from "../middleware/authToken.js";
 import { isAdmin } from "../middleware/isAdmin.js";
 
@@ -14,6 +14,7 @@ router.delete("/:id", authToken, isAdmin, deleteUser);
 router.get("/me/services", authToken, getMyUserServices);
 router.get("/me/history", authToken, getUserHistory);
 router.get("/me/profile", authToken, getMyProfile);
+router.put("/me/profile", authToken, updateMyProfile);
 router.put("/me/avatar", authToken, updateAvatar);
 
 export default router;

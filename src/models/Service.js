@@ -88,6 +88,7 @@ const buildServiceSelect = async () => {
       p.transaction_reference,
       p.payment_method_id,
       p.amount AS payment_amount,
+      p.amount AS estimated_price,
       p.pay_date
     FROM services s
     LEFT JOIN service_types t ON s.service_type_id = t.service_type_id
