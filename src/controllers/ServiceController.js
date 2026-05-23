@@ -3,7 +3,11 @@ import { ServiceHistory } from "../models/ServiceHistory.js";
 import { AdminLog } from "../models/AdminLog.js";
 import { ServiceType } from "../models/ServiceType.js";
 import { Worker } from "../models/Worker.js";
+import { User } from "../models/User.js";
+import { UserProfile } from "../models/UserProfile.js";
 import { Payment } from "../models/Payment.js";
+import { Quote } from "../models/Quote.js";
+import notify from "../utils/notify.js";
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -39,6 +43,16 @@ const ALLOWED_TRANSITIONS = {
 export const getServices = async (req, res, next) => {
   try {
     const data = await Service.findAll();
+    res.json({ status: true, data });
+  } catch (err) { next(err); }
+};
+
+export const getService = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw createHttpError(400, 'ID de servicio inválido');
+    const data = await Service.findById(id);
+    if (!data) throw createHttpError(404, 'Servicio no encontrado');
     res.json({ status: true, data });
   } catch (err) { next(err); }
 };
@@ -85,10 +99,40 @@ export const requestService = async (req, res, next) => {
       throw createHttpError(400, "address_id debe ser un número válido");
     }
 
+    const client = await User.findById(client_id);
+    if (!client) {
+      throw createHttpError(404, "Usuario no encontrado");
+    }
+
     const serviceType = await ServiceType.findById(parsedServiceTypeId);
     if (!serviceType) {
       throw createHttpError(404, "service_type_id no existe");
     }
+
+    const clientProfile = await UserProfile.findByUserId(client_id);
+    if (!clientProfile?.address) {
+      throw createHttpError(400, "Debes registrar una dirección antes de solicitar el servicio");
+    }
+
+    const effectiveAddressId = parsedAddressId ?? client.address_id ?? clientProfile.address_id ?? null;
+    if (!effectiveAddressId) {
+      throw createHttpError(400, "Debes registrar una dirección antes de solicitar el servicio");
+    }
+
+    const addressSnapshot = {
+      address_id: effectiveAddressId,
+      entity_type: clientProfile.address.entity_type ?? null,
+      address_type: clientProfile.address.address_type ?? null,
+      street_name: clientProfile.address.street_name ?? null,
+      ext_number: clientProfile.address.ext_number ?? null,
+      int_number: clientProfile.address.int_number ?? null,
+      phone_number: clientProfile.address.phone_number ?? null,
+      postal_code: clientProfile.address.postal_code ?? null,
+      settlement_name: clientProfile.address.settlement_name ?? null,
+      city_name: clientProfile.address.city_name ?? null,
+      state_name: clientProfile.address.state_name ?? null,
+      country_name: clientProfile.address.country_name ?? null
+    };
 
     let parsedWorkerId = null;
     if (worker_id != null && worker_id !== "") {
@@ -107,7 +151,8 @@ export const requestService = async (req, res, next) => {
       service_type_id: parsedServiceTypeId,
       client_id,
       worker_id: parsedWorkerId,
-      address_id: parsedAddressId,
+      address_id: effectiveAddressId,
+      address_snapshot: addressSnapshot,
       description: description.trim(),
       status_id: 1
     });
@@ -124,12 +169,13 @@ export const requestService = async (req, res, next) => {
       action: "service_requested",
       entity_type: "services",
       entity_id: id,
-      changes: JSON.stringify({ service_type_id: parsedServiceTypeId, description: description.trim(), worker_id: parsedWorkerId, address_id: parsedAddressId }),
+      changes: JSON.stringify({ service_type_id: parsedServiceTypeId, description: description.trim(), worker_id: parsedWorkerId, address_id: effectiveAddressId }),
       ip_address: req.ip,
       user_agent: req.headers["user-agent"]
     });
 
-    res.json({ status: true, message: "Servicio solicitado", id });
+    const data = await Service.findById(id);
+    res.json({ status: true, message: "Servicio solicitado", id, data });
   } catch (err) { next(err); }
 };
 
@@ -162,7 +208,8 @@ export const assignWorker = async (req, res, next) => {
       user_agent: req.headers["user-agent"]
     });
 
-    res.json({ status: true, message: "Trabajador asignado", worker_id, service_id });
+    const data = await Service.findById(service_id);
+    res.json({ status: true, message: "Trabajador asignado", worker_id, service_id, data });
   } catch (err) { next(err); }
 };
 
@@ -229,41 +276,31 @@ export const createQuote = async (req, res, next) => {
       throw createHttpError(403, "No autorizado");
     }
 
-    // Create or update payment as a quotation
-    const existingPayment = await Payment.findByServiceId(serviceId);
-    if (existingPayment) {
-      await Payment.update(existingPayment.payment_id, {
-        service_id: serviceId,
-        payment_method_id: existingPayment.payment_method_id,
-        amount: estimated_price,
-        status: existingPayment.status || "Pendiente",
-        transaction_reference: existingPayment.transaction_reference
-      });
-    } else {
-      await Payment.create({
-        service_id: serviceId,
-        payment_method_id: null,
-        amount: estimated_price,
-        status: "Pendiente",
-        transaction_reference: null
-      });
-    }
+    // Create a Quote entry (worker -> quote)
+    const quoteId = await Quote.create({ service_id: serviceId, worker_id: req.user?.worker_id || null, amount: estimated_price });
 
-    // Ensure service status reflects that it has been quoted (Pendiente)
-    const pendienteId = await Service.findStatusIdByName("Pendiente");
-    if (pendienteId) {
-      await Service.updateStatus(serviceId, pendienteId);
-    }
-
+    // Log history
     await ServiceHistory.create({
       service_id: serviceId,
-      status_id: pendienteId || service.status_id,
+      status_id: service.status_id,
       changed_by_user_id: req.user.user_id,
-      notes: `Cotización enviada: ${estimated_price}`
+      notes: `Cotización enviada: ${estimated_price} (quote_id: ${quoteId})`
+    });
+
+    // AdminLog
+    await AdminLog.create({ admin_user_id: req.user.user_id, action: 'quote_created', entity_type: 'quotes', entity_id: quoteId, changes: JSON.stringify({ amount: estimated_price }), ip_address: req.ip, user_agent: req.headers['user-agent'] });
+
+    // Notify connected clients so the frontend can refresh and show the accept button
+    notify.broadcast('quote_created', {
+      quote_id: quoteId,
+      service_id: serviceId,
+      worker_id: req.user?.worker_id || null,
+      amount: estimated_price,
+      status: 'PENDIENTE'
     });
 
     const updated = await Service.findById(serviceId);
-    res.json({ status: true, message: "Cotización enviada", data: updated });
+    res.json({ status: true, message: "Cotización creada", quote_id: quoteId, data: updated });
   } catch (err) { next(err); }
 };
 
@@ -352,7 +389,8 @@ export const updateServiceStatus = async (req, res, next) => {
       }
     }
 
-    res.json({ status: true, message: "Servicio actualizado exitosamente", service_id: serviceId, status_name: requestedCanonicalStatus, status_id: nextStatusId, updated_at: new Date().toISOString() });
+    const data = await Service.findById(serviceId);
+    res.json({ status: true, message: "Servicio actualizado exitosamente", service_id: serviceId, status_name: requestedCanonicalStatus, status_id: nextStatusId, updated_at: new Date().toISOString(), data });
   } catch (err) { next(err); }
 };
 
@@ -402,6 +440,7 @@ export const cancelService = async (req, res, next) => {
       notes: "Servicio cancelado"
     });
 
-    res.json({ status: true, message: "Servicio cancelado", service_id: serviceId });
+    const data = await Service.findById(serviceId);
+    res.json({ status: true, message: "Servicio cancelado", service_id: serviceId, data });
   } catch (err) { next(err); }
 };

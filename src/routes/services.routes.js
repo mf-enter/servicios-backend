@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { getServices, createService, updateService, deleteService, requestService, assignWorker, getServicesByStatus, getLiveServices, updateServiceStatus, cancelService, createQuote } from "../controllers/ServiceController.js";
+import { getServices, getService, createService, updateService, deleteService, requestService, assignWorker, getServicesByStatus, getLiveServices, updateServiceStatus, cancelService, createQuote } from "../controllers/ServiceController.js";
 import { authToken } from "../middleware/authToken.js";
 import { isAdmin } from "../middleware/isAdmin.js";
 
 const router = Router();
 
 router.get("/", getServices);
+router.get("/:id", getService);
 router.get("/status/:statusId", authToken, isAdmin, getServicesByStatus);
 router.get("/live", authToken, isAdmin, getLiveServices);
 

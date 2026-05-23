@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/utils/seedAdmin.js"
+    "seed": "node src/utils/seedAdmin.js",
+    "test:lifecycle": "node tests/lifecycle.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -14,7 +15,9 @@
     "dotenv": "^16.4.5",
     "express": "^5.0.0",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.9.2"
+    "mysql2": "^3.9.2",
+    "ws": "^8.13.0",
+    "node-fetch": "^3.3.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"
