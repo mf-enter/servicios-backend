@@ -17,7 +17,7 @@ const buildAuthTokenPayload = (entity, role, entityIdKey) => ({
 
 export const register = async (req,res,next)=>{
   try{
-    const { name, lastname, email, password, role, bio, hourly_rate, experience_years } = req.body;
+    const { name, lastname, email, password, role, bio, hourly_rate, experience_years, address_id } = req.body;
     if(!name||!lastname||!email||!password) return res.status(400).json({status:false,message:"Datos incompletos"});
     const [adminExists, workerExists, userExists] = await Promise.all([
       Admin.findByEmail(email),
@@ -35,6 +35,7 @@ export const register = async (req,res,next)=>{
         bio,
         hourly_rate,
         experience_years,
+        address_id,
         is_verified: false
       });
       return res.status(201).json({status:true,message:"Trabajador creado", role:"worker", id, worker_id: id});
