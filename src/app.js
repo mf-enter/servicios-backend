@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 import routes from "./routes/index.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -51,16 +53,23 @@ app.get("/api/health", (req, res) =>
 
 app.use("/api", routes);
 
-const __dirname = path.resolve();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, "..");
+const clientDistPath = path.join(projectRoot, "dist");
+const clientIndexPath = path.join(clientDistPath, "index.html");
+const hasClientBuild = fs.existsSync(clientIndexPath);
 
-app.use(express.static(path.join(__dirname, "dist")));
+if (hasClientBuild) {
+  app.use(express.static(clientDistPath));
 
-/* FIX SPA SAFE */
-app.use((req, res, next) => {
-  if (req.path.startsWith("/api")) return next();
+  /* SPA fallback only when the built client is present. */
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
 
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
-});
+    res.sendFile(clientIndexPath);
+  });
+}
 
 app.use(errorHandler);
 
