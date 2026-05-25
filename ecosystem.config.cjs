@@ -6,7 +6,10 @@ module.exports = {
       script: "./src/server.js",
       env: {
         PORT: 5000,
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        TRUST_PROXY: "true",
+        WS_PATH: "/ws",
+        WS_ALLOW_ROOT_COMPAT: "true"
       }
     },
     {

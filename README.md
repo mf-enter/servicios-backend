@@ -39,6 +39,18 @@ Producción:
 npm start
 ```
 
+## Producción
+
+El backend expone el WebSocket en la ruta canónica `/ws` y mantiene compatibilidad con `/` para clientes legados. Detrás de un proxy o balanceador, asegúrate de reenviar `Connection: upgrade` y `Upgrade: websocket`.
+
+Si el sitio público usa HTTPS, el frontend debe conectar por `wss` y no por `ws`. La URL pública de API debe apuntar al dominio real del backend en producción, no a `localhost`.
+
+Variables recomendadas:
+
+- `VITE_API_URL=https://tu-dominio-backend`
+- `VITE_WS_PATH=/ws`
+- o `VITE_WS_URL=wss://tu-dominio-backend/ws`
+
 ## Estructura del Proyecto
 
 ```

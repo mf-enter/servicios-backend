@@ -7,6 +7,9 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { pool } from "./config/db.js";
 
 const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
 const corsOptions = {
   origin: true,
   credentials: true,
@@ -36,7 +39,14 @@ app.get("/api/debug-db", async (req, res) => {
 });
 
 app.get("/api/health", (req, res) =>
-  res.json({ status: true, message: "API OK" })
+  res.json({
+    status: true,
+    message: "API OK",
+    websocket: {
+      path: process.env.WS_PATH || "/ws",
+      compatibility: ["/", "/ws"]
+    }
+  })
 );
 
 app.use("/api", routes);
