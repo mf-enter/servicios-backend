@@ -7,7 +7,14 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import { pool } from "./config/db.js";
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 app.get("/api/db-test", async (req, res) => {
