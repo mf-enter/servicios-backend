@@ -52,3 +52,4 @@ WHERE NOT EXISTS (
   WHERE LOWER(`service_name`) = LOWER('Electricista')
   LIMIT 1
 );
+

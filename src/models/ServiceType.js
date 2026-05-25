@@ -60,3 +60,4 @@ export const ServiceType = {
     return r.insertId;
   }
 };
+

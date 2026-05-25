@@ -12,3 +12,4 @@ export const createServiceType = async (req, res, next) => {
   try { res.json({ status: true, id: await ServiceType.create(req.body) }); }
   catch (err) { next(err); }
 };
+
