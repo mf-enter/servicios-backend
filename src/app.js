@@ -4,7 +4,14 @@ import routes from "./routes/index.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+	origin: true,
+	credentials: true,
+	optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 app.use(express.json());
 
 app.get("/api/health", (req, res) => res.json({ status: true, message: "API OK" }));

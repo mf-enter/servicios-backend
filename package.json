@@ -7,7 +7,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "seed": "node src/utils/seedAdmin.js",
-    "test:lifecycle": "node tests/lifecycle.test.js"
+    "test:lifecycle": "node tests/lifecycle.test.js",
+    "test:api": "node --test tests/api-contract.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

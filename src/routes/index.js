@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { login, register } from "../controllers/AuthController.js";
 import auth from "./auth.routes.js";
 import users from "./users.routes.js";
 import roles from "./roles.routes.js";
@@ -25,6 +26,9 @@ import workers from "./workers.routes.js";
 import admin from "./admin.routes.js";
 
 const router = Router();
+
+router.post("/login", login);
+router.post("/register", register);
 
 router.use("/auth", auth);
 router.use("/users", users);

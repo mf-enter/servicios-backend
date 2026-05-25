@@ -12,6 +12,8 @@ router.get("/me/services", authToken, isWorker, getMyWorkerServices);
 router.get("/me/history", authToken, isWorker, getMyWorkerHistory);
 router.get("/me/profile", authToken, isWorker, getMyProfile);
 router.put("/me/profile", authToken, isWorker, updateMyProfile);
+router.get("/profile", authToken, isWorker, getMyProfile);
+router.put("/profile", authToken, isWorker, updateMyProfile);
 router.get("/:id", getWorker);
 router.post("/", authToken, isAdmin, createWorker);
 router.put("/:id", authToken, isAdmin, updateWorker);
