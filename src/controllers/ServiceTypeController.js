@@ -1,7 +1,10 @@
 import { ServiceType } from "../models/ServiceType.js";
 
 export const getServiceTypes = async (req, res, next) => {
-  try { res.json({ status: true, data: await ServiceType.findAll() }); }
+  try {
+    await ServiceType.ensureDefaults();
+    res.json({ status: true, data: await ServiceType.findAll() });
+  }
   catch (err) { next(err); }
 };
 
